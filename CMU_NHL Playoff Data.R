@@ -274,10 +274,14 @@ nhl_player_shooting %>%
   ggthemes::scale_color_colorblind() +
   geom_hline(yintercept = mean(nhl_player_shooting$away_shots_per_game), 
              linetype = "dashed", 
-             color = "purple") +
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
   geom_vline(xintercept = mean(nhl_player_shooting$home_shots_per_game), 
              linetype = "dashed", 
-             color = "purple") +
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
   theme_bw() +
   theme(legend.position = "bottom")
 
@@ -304,10 +308,14 @@ nhl_player_shooting_filtered %>%
   ggthemes::scale_color_colorblind() +
   geom_hline(yintercept = mean(nhl_player_shooting_filtered$away_shooting_percentage), 
              linetype = "dashed", 
-             color = "purple") +
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
   geom_vline(xintercept = mean(nhl_player_shooting_filtered$home_shooting_percentage), 
              linetype = "dashed", 
-             color = "purple") +
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
   theme_bw() +
   theme(legend.position = "bottom")
 
