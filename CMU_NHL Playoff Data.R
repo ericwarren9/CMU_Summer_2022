@@ -225,3 +225,94 @@ nhl_shots_on_goal %>%
 nhl_shots_on_goal %>%
   filter(teamName %in% c("COL", "TBL", "NYR", "EDM")) %>%
   select(teamName, cluster_number_total_shots, cluster_number_shooting_percentage)
+
+
+# Cluster based on player data --------------------------------------------
+
+# Load the away player shooting data
+nhl_shots_away_players <- nhl_shots %>% 
+  group_by(shooterName) %>% 
+  filter(isHomeTeam == 0) %>% 
+  summarize(away_shots = sum(shotWasOnGoal),
+            away_goals = sum(event == "GOAL"),
+            away_games = n_distinct(game_id)) %>%
+  mutate(away_shots_per_game = round(away_shots / away_games, 2), 
+         away_goals_per_game = round(away_goals / away_games, 2),
+         away_shooting_percentage = round(away_goals / away_shots, 4))
+
+# Load the home player shooting data
+nhl_shots_home_players <- nhl_shots %>% 
+  group_by(shooterName) %>%
+  filter(isHomeTeam == 1) %>% 
+  summarize(home_shots = sum(shotWasOnGoal),
+            home_goals = sum(event == "GOAL"),
+            home_games = n_distinct(game_id)) %>%
+  mutate(home_shots_per_game = round(home_shots / home_games, 2),
+         home_goals_per_game = round(home_goals / home_games, 2),
+         home_shooting_percentage = round(home_goals / home_shots, 4))
+
+# Merge the Data Sets together into one
+nhl_player_shooting <- merge(nhl_shots_away_players,
+                           nhl_shots_home_players,
+                           by = "shooterName")
+
+# Make cluster for home and away shots on goal data per game
+library(flexclust)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_player_shooting,
+                     away_shots_per_game, 
+                     home_shots_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_player_shooting %>%
+  mutate(nhl_player_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = away_shots_per_game, 
+             y = home_shots_per_game,
+             color = nhl_player_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_player_shooting$away_shots_per_game), 
+             linetype = "dashed", 
+             color = "purple") +
+  geom_vline(xintercept = mean(nhl_player_shooting$home_shots_per_game), 
+             linetype = "dashed", 
+             color = "purple") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Here we can see what teams are in each cluster
+nhl_player_shooting$cluster_number_total_shots <- init_kmeanspp@cluster
+
+# Here we can look at the shooting percentages at each spot
+nhl_player_shooting_filtered <- nhl_player_shooting %>%
+  filter(away_shots >= 3,
+         home_shots >= 3)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_player_shooting_filtered,
+                     away_shooting_percentage, 
+                     home_shooting_percentage), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_player_shooting_filtered %>%
+  mutate(nhl_player_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = away_shooting_percentage, 
+             y = home_shooting_percentage,
+             color = nhl_player_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_player_shooting_filtered$away_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple") +
+  geom_vline(xintercept = mean(nhl_player_shooting_filtered$home_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Look at which teams are in each cluster
+nhl_player_shooting_filtered$cluster_number_shooting_percentage <- init_kmeanspp@cluster
+
+# Here we can see what cluster people are in for the upper cluster taking the most shots away and at home (these might be the top playoff players generating the most offense)
+nhl_player_shooting[which(nhl_player_shooting$cluster_number_total_shots == 3), ]
