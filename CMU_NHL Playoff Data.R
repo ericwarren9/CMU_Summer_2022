@@ -122,6 +122,7 @@ geom_hockey(league = "NHL", full_surf = F) +
 
 # Shot Distance versus type of shot ---------------------------------------
 
+# Initial Model 
 nhl_shots %>%
   ggplot(aes(x = shotDistance)) + 
   geom_histogram(bins = 15, color = "red") +
@@ -131,6 +132,24 @@ nhl_shots %>%
        caption = "Data Courtesy of MoneyPuck.com") +
   theme_bw() +
   facet_wrap(~ shotType, ncol = 3)
+
+# Updated Model
+nhl_shots %>%
+  ggplot(aes(x = shotDistance)) +
+  geom_histogram(bins = 15,
+                 color = "cornflowerblue",
+                 fill = "cornflowerblue",
+                 alpha = .22,
+                 size = .65) +
+  geom_vline(xintercept = mean(nhl_shots$shotDistance),
+             linetype = "88",
+             color = "darkred") +
+  labs(title = "How Type of Shot Varies by Distance",
+       x = "Distance Away From Goal (in feet)",
+       y = "Frequency of Type of Shot",
+       caption = "Data Courtesy of Moneypuck.com") +
+  theme_bw() +
+  facet_wrap( ~ shotType, ncol = 1)
 
 
 # Examine Home versus Away Shot Data -----------------------------------------
@@ -258,11 +277,12 @@ nhl_player_shooting <- merge(nhl_shots_away_players,
 
 # Make cluster for home and away shots on goal data per game
 library(flexclust)
+set.seed(12)
 init_kmeanspp <- 
   kcca(dplyr::select(nhl_player_shooting,
                      away_shots_per_game, 
                      home_shots_per_game), 
-       k = 4,
+       k = 6,
        control = list(initcent = "kmeanspp"))
 nhl_player_shooting %>%
   mutate(nhl_player_clusters = 
@@ -289,6 +309,7 @@ nhl_player_shooting %>%
 nhl_player_shooting$cluster_number_total_shots <- init_kmeanspp@cluster
 
 # Here we can look at the shooting percentages at each spot
+set.seed(12)
 nhl_player_shooting_filtered <- nhl_player_shooting %>%
   filter(away_shots >= 3,
          home_shots >= 3)
@@ -323,4 +344,104 @@ nhl_player_shooting_filtered %>%
 nhl_player_shooting_filtered$cluster_number_shooting_percentage <- init_kmeanspp@cluster
 
 # Here we can see what cluster people are in for the upper cluster taking the most shots away and at home (these might be the top playoff players generating the most offense)
-nhl_player_shooting[which(nhl_player_shooting$cluster_number_total_shots == 3), ]
+nhl_player_shooting[which(nhl_player_shooting$cluster_number_total_shots == 6), "shooterName"]
+
+
+# Look at shooting total instead of home and away breakdown ---------------
+
+nhl_shots_total_players <- nhl_shots %>% 
+  group_by(shooterName) %>% 
+  summarize(total_shots = sum(shotWasOnGoal),
+            total_goals = sum(event == "GOAL"),
+            total_games = n_distinct(game_id)) %>%
+  mutate(total_shots_per_game = round(total_shots / total_games, 2), 
+         total_goals_per_game = round(total_goals / total_games, 2),
+         total_shooting_percentage = round(total_goals / total_shots, 4))
+
+# Cluster of shots on goal versus their shooting percentage
+nhl_shots_total_players <- nhl_shots_total_players[complete.cases(nhl_shots_total_players), ]
+library(flexclust)
+set.seed(12)
+nhl_shots_total_players <- nhl_shots_total_players %>%
+  mutate(std_total_shots = 
+           as.numeric(scale(total_shots, 
+                            center = TRUE, 
+                            scale = TRUE)),
+         std_total_shooting_percentage = 
+           as.numeric(scale(total_shooting_percentage, 
+                            center = TRUE, 
+                            scale = TRUE)))
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_shots_total_players,
+                     std_total_shots, 
+                     std_total_shooting_percentage), 
+       k = 6,
+       control = list(initcent = "kmeanspp"))
+nhl_shots_total_players %>%
+  mutate(nhl_player_shot_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = std_total_shots, 
+             y = std_total_shooting_percentage,
+             color = nhl_player_shot_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_shots_total_players$std_total_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_shots_total_players$std_total_shots), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Make requirement that players need at least 5 shots
+nhl_shots_total_players_filtered <- nhl_shots_total_players[complete.cases(nhl_shots_total_players), ] %>% 
+  filter(nhl_shots_total_players$total_shots >= 5)
+library(flexclust)
+set.seed(12)
+nhl_shots_total_players <- nhl_shots_total_players_filtered %>%
+  mutate(std_total_shots = 
+           as.numeric(scale(total_shots, 
+                            center = TRUE, 
+                            scale = TRUE)),
+         std_total_shooting_percentage = 
+           as.numeric(scale(total_shooting_percentage, 
+                            center = TRUE, 
+                            scale = TRUE)))
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_shots_total_players,
+                     std_total_shots, 
+                     std_total_shooting_percentage), 
+       k = 6,
+       control = list(initcent = "kmeanspp"))
+nhl_shots_total_players %>%
+  mutate(nhl_player_shot_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = std_total_shots, 
+             y = std_total_shooting_percentage,
+             color = nhl_player_shot_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_shots_total_players_filtered$std_total_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_shots_total_players_filtered$std_total_shots), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Look at players who are in cluster 6
+nhl_shots_total_players_filtered$cluster_number_total_shots <- init_kmeanspp@cluster
+
+nhl_shots_total_players_filtered[which(nhl_shots_total_players_filtered$cluster_number_total_shots == 4), "shooterName"]
+
+nhl_shots_total_players_filtered[which(nhl_shots_total_players_filtered$cluster_number_total_shots == 1), "shooterName"]
