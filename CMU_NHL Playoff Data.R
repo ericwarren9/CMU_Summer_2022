@@ -142,8 +142,11 @@ nhl_shots_away_teams <- nhl_shots %>%
   group_by(awayTeamCode) %>% 
   filter(isHomeTeam == 0) %>% 
   summarize(away_shots = sum(shotWasOnGoal),
+            away_goals = sum(event == "GOAL"),
             away_games = n_distinct(game_id)) %>%
-  mutate(away_shots_per_game = round(away_shots / away_games, 2)) %>%
+  mutate(away_shots_per_game = round(away_shots / away_games, 2), 
+         away_goals_per_game = round(away_goals / away_games, 2),
+         away_shooting_percentage = round(away_goals / away_shots, 4)) %>%
   rename(teamName = awayTeamCode)
 
 # Home Shot Data
@@ -151,8 +154,11 @@ nhl_shots_home_teams <- nhl_shots %>%
   group_by(homeTeamCode) %>%
   filter(isHomeTeam == 1) %>% 
   summarize(home_shots = sum(shotWasOnGoal),
+            home_goals = sum(event == "GOAL"),
             home_games = n_distinct(game_id)) %>%
-  mutate(home_shots_per_game = round(home_shots / home_games, 2)) %>%
+  mutate(home_shots_per_game = round(home_shots / home_games, 2),
+         home_goals_per_game = round(home_goals / home_games, 2),
+         home_shooting_percentage = round(home_goals / home_shots, 4)) %>%
   rename(teamName = homeTeamCode)
 
 # Merge the Data Sets together into one
@@ -177,3 +183,6 @@ nhl_shots_on_goal %>%
   ggthemes::scale_color_colorblind() +
   theme_bw() +
   theme(legend.position = "bottom")
+
+# Here we can see what teams are in each cluster
+nhl_shots_on_goal$cluster_number <- init_kmeanspp@cluster
