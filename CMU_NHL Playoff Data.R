@@ -165,7 +165,11 @@ nhl_shots_home_teams <- nhl_shots %>%
 nhl_shots_on_goal <- merge(nhl_shots_away_teams,
                            nhl_shots_home_teams,
                            by = "teamName")
-#Make the Cluster Model
+
+
+# Make cluster models for different shot and scoring data -----------------
+
+# Make cluster for home and away shots on goal data per game
 library(flexclust)
 init_kmeanspp <- 
   kcca(dplyr::select(nhl_shots_on_goal,
@@ -185,4 +189,39 @@ nhl_shots_on_goal %>%
   theme(legend.position = "bottom")
 
 # Here we can see what teams are in each cluster
-nhl_shots_on_goal$cluster_number <- init_kmeanspp@cluster
+nhl_shots_on_goal$cluster_number_total_shots <- init_kmeanspp@cluster
+
+# Here we can look at home and away shooting percentages and if there is a correlation between clusters
+library(flexclust)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_shots_on_goal,
+                     away_shooting_percentage, 
+                     home_shooting_percentage), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_shots_on_goal %>%
+  mutate(nhl_team_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = away_shooting_percentage, 
+             y = home_shooting_percentage,
+             color = nhl_team_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Look at which teams are in each cluster
+nhl_shots_on_goal$cluster_number_shooting_percentage <- init_kmeanspp@cluster
+
+# Here we can look at who is in cluster 2 (for example)
+nhl_shots_on_goal[which(nhl_shots_on_goal$cluster_number_shooting_percentage == 2), ]
+
+# Want to see what clusters the two finalist teams are in for both data sets to see if there is a match or trend
+nhl_shots_on_goal %>%
+  filter(teamName %in% c("COL", "TBL")) %>%
+  select(teamName, cluster_number_total_shots, cluster_number_shooting_percentage)
+
+# How about the two teams that lost in the conference finals and two Stanley Cup Finalists? Maybe more of a pattern?
+nhl_shots_on_goal %>%
+  filter(teamName %in% c("COL", "TBL", "NYR", "EDM")) %>%
+  select(teamName, cluster_number_total_shots, cluster_number_shooting_percentage)
