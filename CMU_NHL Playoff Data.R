@@ -747,7 +747,8 @@ nhl_goalies_starters %>%
              size = 2,
              alpha = 0.3) +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") +
+  coord_fixed()
 
 # Put each team into a cluster
 nhl_goalies_starters$starter_saves_cluster <- init_kmeanspp@cluster
