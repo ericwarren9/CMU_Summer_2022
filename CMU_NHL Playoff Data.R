@@ -160,7 +160,7 @@ nhl_shots %>%
 nhl_shots_away_teams <- nhl_shots %>% 
   group_by(awayTeamCode) %>% 
   filter(isHomeTeam == 0) %>% 
-  summarize(away_shots = sum(shotWasOnGoal),
+  summarize(away_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
             away_goals = sum(event == "GOAL"),
             away_games = n_distinct(game_id)) %>%
   mutate(away_shots_per_game = round(away_shots / away_games, 2), 
@@ -172,7 +172,7 @@ nhl_shots_away_teams <- nhl_shots %>%
 nhl_shots_home_teams <- nhl_shots %>% 
   group_by(homeTeamCode) %>%
   filter(isHomeTeam == 1) %>% 
-  summarize(home_shots = sum(shotWasOnGoal),
+  summarize(home_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
             home_goals = sum(event == "GOAL"),
             home_games = n_distinct(game_id)) %>%
   mutate(home_shots_per_game = round(home_shots / home_games, 2),
@@ -252,7 +252,7 @@ nhl_shots_on_goal %>%
 nhl_shots_away_players <- nhl_shots %>% 
   group_by(shooterName) %>% 
   filter(isHomeTeam == 0) %>% 
-  summarize(away_shots = sum(shotWasOnGoal),
+  summarize(away_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
             away_goals = sum(event == "GOAL"),
             away_games = n_distinct(game_id)) %>%
   mutate(away_shots_per_game = round(away_shots / away_games, 2), 
@@ -263,7 +263,7 @@ nhl_shots_away_players <- nhl_shots %>%
 nhl_shots_home_players <- nhl_shots %>% 
   group_by(shooterName) %>%
   filter(isHomeTeam == 1) %>% 
-  summarize(home_shots = sum(shotWasOnGoal),
+  summarize(home_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
             home_goals = sum(event == "GOAL"),
             home_games = n_distinct(game_id)) %>%
   mutate(home_shots_per_game = round(home_shots / home_games, 2),
@@ -351,7 +351,7 @@ nhl_player_shooting[which(nhl_player_shooting$cluster_number_total_shots == 6), 
 
 nhl_shots_total_players <- nhl_shots %>% 
   group_by(shooterName) %>% 
-  summarize(total_shots = sum(shotWasOnGoal),
+  summarize(total_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
             total_goals = sum(event == "GOAL"),
             total_games = n_distinct(game_id)) %>%
   mutate(total_shots_per_game = round(total_shots / total_games, 2), 
@@ -445,3 +445,311 @@ nhl_shots_total_players_filtered$cluster_number_total_shots <- init_kmeanspp@clu
 nhl_shots_total_players_filtered[which(nhl_shots_total_players_filtered$cluster_number_total_shots == 4), "shooterName"]
 
 nhl_shots_total_players_filtered[which(nhl_shots_total_players_filtered$cluster_number_total_shots == 1), "shooterName"]
+
+
+
+
+# Find the breakdown between expected goals and goals scored --------------
+
+# Make a goal scored category
+nhl_shots$goalScored <- ifelse(nhl_shots$event == "GOAL", 1, 0)
+
+# Calculate expected goals based on data given
+expected_goals <- lm(goalScored ~ shooterLeftRight + shooterTimeOnIce + shotType + abs(shotAngle) + shotDistance + shotOnEmptyNet + shotRebound + shotRush + shotWasOnGoal + arenaAdjustedShotDistance + arenaAdjustedXCord + arenaAdjustedYCord + isHomeTeam, nhl_shots)
+summary(expected_goals)
+
+# Make the fitted values into the data set
+nhl_shots$expected_goals <- expected_goals$fitted.values
+
+#Fix rounding error to make all players that have expected goals at negative to zero (this is negative because missing the net technically has a slightly negative value for this model)
+nhl_shots$expected_goals <- ifelse(nhl_shots$expected_goals > 0, nhl_shots$expected_goals, 0)
+
+#Make data set with all the things we want
+nhl_expected_goal_players <- nhl_shots %>% 
+  group_by(shooterName) %>% 
+  summarize(total_goals = sum(goalScored),
+            total_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
+            total_games = n_distinct(game_id),
+            total_expected_goals = sum(expected_goals)) %>%
+  mutate(total_shots_per_game = round(total_shots / total_games, 2), 
+         total_shooting_percentage = round(total_goals / total_shots, 4),
+         goals_per_game = round(total_goals / total_games, 4),
+         expected_goals_per_game = round(total_expected_goals / total_games, 4),
+         diff_expected_to_actual = total_goals - total_expected_goals,
+         diff_expected_to_actual_per_game = round(diff_expected_to_actual / total_games, 4))
+
+# Cluster players by expected goals and amount of goals they scored per game
+library(flexclust)
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_expected_goal_players,
+                     expected_goals_per_game, 
+                     goals_per_game), 
+       k = 6,
+       control = list(initcent = "kmeanspp"))
+nhl_expected_goal_players %>%
+  mutate(nhl_player_goals_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = expected_goals_per_game, 
+             y = goals_per_game,
+             color = nhl_player_goals_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_expected_goal_players$goals_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_expected_goal_players$expected_goals_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom") + 
+  coord_fixed()
+
+# See who outlier is
+nhl_expected_goal_players$cluster_number <- init_kmeanspp@cluster
+
+nhl_expected_goal_players[which(nhl_expected_goal_players$cluster_number == 3), "shooterName"]
+
+# What if we cluster based on total shots per game and their expected goal value
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_expected_goal_players,
+                     total_shooting_percentage, 
+                     diff_expected_to_actual_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_expected_goal_players %>%
+  mutate(nhl_player_shots_goals_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = total_shooting_percentage, 
+             y = diff_expected_to_actual_per_game,
+             color = nhl_player_shots_goals_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_expected_goal_players$diff_expected_to_actual_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_expected_goal_players$total_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+
+# Look at clustering by team based on expected goals and shot perc --------
+
+nhl_expected_goal_team <- nhl_shots %>% 
+  group_by(teamCode) %>% 
+  summarize(total_goals = sum(goalScored),
+            total_shots = sum(event %in% c("GOAL", "SHOT", "MISS")),
+            total_games = n_distinct(game_id),
+            total_expected_goals = sum(expected_goals)) %>%
+  mutate(total_shots_per_game = round(total_shots / total_games, 2), 
+         total_shooting_percentage = round(total_goals / total_shots, 4),
+         goals_per_game = round(total_goals / total_games, 4),
+         expected_goals_per_game = round(total_expected_goals / total_games, 4),
+         diff_expected_to_actual = total_expected_goals - total_goals,
+         diff_expected_to_actual_per_game = round(diff_expected_to_actual / total_games, 4))
+
+# Here we can look at doing the shot percentage as a team compared to expected goals
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_expected_goal_team,
+                     total_shooting_percentage, 
+                     diff_expected_to_actual_per_game), 
+       k =5,
+       control = list(initcent = "kmeanspp"))
+nhl_expected_goal_team %>%
+  mutate(nhl_team_shots_goals_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = total_shooting_percentage, 
+             y = diff_expected_to_actual_per_game,
+             color = nhl_team_shots_goals_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_expected_goal_team$diff_expected_to_actual_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_expected_goal_team$total_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each team into a cluster
+nhl_expected_goal_team$cluster_for_shooting_percent_to_expected_goals <- init_kmeanspp@cluster
+
+nhl_expected_goal_team %>%
+  select(teamCode, cluster_for_shooting_percent_to_expected_goals)
+
+
+
+
+# Here we can look at doing the total shots as a team compared to expected goals
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_expected_goal_team,
+                     total_shooting_percentage, 
+                     diff_expected_to_actual_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_expected_goal_team %>%
+  mutate(nhl_team_shots_goals_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = total_shooting_percentage, 
+             y = diff_expected_to_actual_per_game,
+             color = nhl_team_shots_goals_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_expected_goal_team$diff_expected_to_actual_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_expected_goal_team$total_shooting_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each team into a cluster
+nhl_expected_goal_team$cluster_for_shooting_percent_to_expected_goals <- init_kmeanspp@cluster
+
+nhl_expected_goal_team %>%
+  select(teamCode, cluster_for_shooting_percent_to_expected_goals)
+
+
+
+# Goaltending Data --------------------------------------------------------
+
+#Goaltending Data set
+nhl_goalies <- nhl_shots %>% 
+  group_by(goalieNameForShot) %>% 
+  summarize(goals_allowed = sum(goalScored),
+            total_shots_faced = sum(event %in% c("GOAL", "SHOT")),
+            total_games = n_distinct(game_id),
+            total_rebounds = sum(shotGeneratedRebound)) %>%
+  mutate(total_shots_faced_per_game = round(total_shots_faced / total_games, 2), 
+         save_percentage = round((total_shots_faced - goals_allowed) / total_shots_faced, 4),
+         goals_allowed_per_game = round(goals_allowed / total_games, 4),
+         rebounds_per_game = round(total_rebounds / total_games, 4)) %>%
+  na.omit()
+
+
+# Make cluster of goaltenders: Does allowing more rebounds decrease save percentage?
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_goalies,
+                     rebounds_per_game, 
+                     goals_allowed_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_goalies %>%
+  mutate(nhl_goalie_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = rebounds_per_game, 
+             y = goals_allowed_per_game,
+             color = nhl_goalie_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_goalies$goals_allowed_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_goalies$rebounds_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each team into a cluster
+nhl_goalies$save_cluster <- init_kmeanspp@cluster
+
+nhl_goalies %>%
+  select(goalieNameForShot, save_cluster)
+
+
+# How do goalies do on the road versus home for save percentages?
+
+#Put in away stats
+nhl_goalies_away <-  nhl_shots %>%
+  group_by(goalieNameForShot) %>% 
+  filter(isHomeTeam == 1) %>%
+  summarize(away_goals_allowed = sum(goalScored),
+            away_shots_faced = sum(event %in% c("GOAL", "SHOT")),
+            away_games = n_distinct(game_id),
+            away_rebounds = sum(shotGeneratedRebound)) %>%
+  mutate(away_shots_faced_per_game = round(away_shots_faced / away_games, 2), 
+         away_save_percentage = round((away_shots_faced - away_goals_allowed) / away_shots_faced, 4),
+         away_goals_allowed_per_game = round(away_goals_allowed / away_games, 4),
+         away_rebounds_per_game = round(away_rebounds / away_games, 4)) %>%
+  na.omit()
+
+#Put in home stats
+nhl_goalies_home <-  nhl_shots %>%
+  group_by(goalieNameForShot) %>% 
+  filter(isHomeTeam == 0) %>%
+  summarize(home_goals_allowed = sum(goalScored),
+            home_shots_faced = sum(event %in% c("GOAL", "SHOT")),
+            home_games = n_distinct(game_id),
+            home_rebounds = sum(shotGeneratedRebound)) %>%
+  mutate(home_shots_faced_per_game = round(home_shots_faced / home_games, 2), 
+         home_save_percentage = round((home_shots_faced - home_goals_allowed) / home_shots_faced, 4),
+         home_goals_allowed_per_game = round(home_goals_allowed / home_games, 4),
+         home_rebounds_per_game = round(home_rebounds / home_games, 4)) %>%
+  na.omit()
+
+# Only combine and observe goalies with both away and home data
+nhl_goalies_starters <- merge(nhl_goalies_away, nhl_goalies_home, by = "goalieNameForShot")
+
+# See how goalies compare on away versus home: Does home ice advantage exist for goalies?
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_goalies_starters,
+                     away_save_percentage, 
+                     home_save_percentage), 
+       k = 5,
+       control = list(initcent = "kmeanspp"))
+nhl_goalies_starters %>%
+  mutate(nhl_goalie_save_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = away_save_percentage, 
+             y = home_save_percentage,
+             color = nhl_goalie_save_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_goalies_starters$home_save_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_goalies_starters$away_save_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each team into a cluster
+nhl_goalies_starters$starter_saves_cluster <- init_kmeanspp@cluster
+
+nhl_goalies_starters %>%
+  select(goalieNameForShot, starter_saves_cluster)
