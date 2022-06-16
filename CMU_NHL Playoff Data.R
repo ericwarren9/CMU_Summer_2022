@@ -690,8 +690,8 @@ nhl_goalies %>%
 
 #Put in away stats
 nhl_goalies_away <-  nhl_shots %>%
-  group_by(goalieNameForShot) %>% 
   filter(isHomeTeam == 1) %>%
+  group_by(goalieNameForShot, awayTeamCode) %>% 
   summarize(away_goals_allowed = sum(goalScored),
             away_shots_faced = sum(event %in% c("GOAL", "SHOT")),
             away_games = n_distinct(game_id),
@@ -717,6 +717,7 @@ nhl_goalies_home <-  nhl_shots %>%
   na.omit()
 
 # Only combine and observe goalies with both away and home data
+nhl_goalies_away <- rename(nhl_goalies_away, teamName = awayTeamCode)
 nhl_goalies_starters <- merge(nhl_goalies_away, nhl_goalies_home, by = "goalieNameForShot")
 
 # See how goalies compare on away versus home: Does home ice advantage exist for goalies?
@@ -725,7 +726,7 @@ init_kmeanspp <-
   kcca(dplyr::select(nhl_goalies_starters,
                      away_save_percentage, 
                      home_save_percentage), 
-       k = 5,
+       k = 6,
        control = list(initcent = "kmeanspp"))
 nhl_goalies_starters %>%
   mutate(nhl_goalie_save_clusters = 
@@ -752,4 +753,6 @@ nhl_goalies_starters %>%
 nhl_goalies_starters$starter_saves_cluster <- init_kmeanspp@cluster
 
 nhl_goalies_starters %>%
-  select(goalieNameForShot, starter_saves_cluster)
+  select(goalieNameForShot, 
+         teamName, 
+         starter_saves_cluster)
