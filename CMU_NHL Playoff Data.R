@@ -642,11 +642,15 @@ nhl_goalies <- nhl_shots %>%
   summarize(goals_allowed = sum(goalScored),
             total_shots_faced = sum(event %in% c("GOAL", "SHOT")),
             total_games = n_distinct(game_id),
-            total_rebounds = sum(shotGeneratedRebound)) %>%
+            total_rebounds = sum(shotGeneratedRebound),
+            allowed_expected_goals = sum(expected_goals)) %>%
   mutate(total_shots_faced_per_game = round(total_shots_faced / total_games, 2), 
          save_percentage = round((total_shots_faced - goals_allowed) / total_shots_faced, 4),
          goals_allowed_per_game = round(goals_allowed / total_games, 4),
-         rebounds_per_game = round(total_rebounds / total_games, 4)) %>%
+         rebounds_per_game = round(total_rebounds / total_games, 4),
+         allowed_expected_goals_per_game = round(allowed_expected_goals / total_games, 4),
+         expected_goals_saved = allowed_expected_goals - goals_allowed,
+         expected_goals_saved_per_game = round(expected_goals_saved / total_games, 4)) %>%
   na.omit()
 
 
@@ -686,7 +690,116 @@ nhl_goalies %>%
   select(goalieNameForShot, save_cluster)
 
 
-# How do goalies do on the road versus home for save percentages?
+# Do save percentage compared to expected goals saved per game
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_goalies,
+                     save_percentage, 
+                     expected_goals_saved_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_goalies %>%
+  mutate(nhl_goalie_saves_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = save_percentage, 
+             y = expected_goals_saved_per_game,
+             color = nhl_goalie_saves_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_goalies$expected_goals_saved_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_goalies$save_percentage), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each goalie into a cluster
+nhl_goalies$goals_saved_cluster <- init_kmeanspp@cluster
+
+nhl_goalies %>%
+  select(goalieNameForShot, goals_saved_cluster)
+
+
+# Goals allowed versus expected goals that should be allowed
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_goalies,
+                     goals_allowed_per_game, 
+                     allowed_expected_goals_per_game), 
+       k = 6,
+       control = list(initcent = "kmeanspp"))
+nhl_goalies %>%
+  mutate(nhl_goalie_goals_allowed_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = goals_allowed_per_game, 
+             y = allowed_expected_goals_per_game,
+             color = nhl_goalie_goals_allowed_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_goalies$allowed_expected_goals_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_goalies$goals_allowed_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each goalie into a cluster
+nhl_goalies$goals_allowed_cluster <- init_kmeanspp@cluster
+
+nhl_goalies %>%
+  select(goalieNameForShot, goals_allowed_cluster)
+
+
+#Does facing more shots affect expected goals saved
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_goalies,
+                     total_shots_faced_per_game, 
+                     expected_goals_saved_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_goalies %>%
+  mutate(nhl_goalie_shots_vs_expected_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = total_shots_faced_per_game, 
+             y = expected_goals_saved_per_game,
+             color = nhl_goalie_shots_vs_expected_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_goalies$expected_goals_saved_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_goalies$total_shots_faced_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# Put each goalie into a cluster
+nhl_goalies$shots_vs_expected_cluster <- init_kmeanspp@cluster
+
+nhl_goalies %>%
+  select(goalieNameForShot, shots_vs_expected_cluster)
+
+
+
+# How do goalies do on the road versus home for save percentages? ---------
 
 #Put in away stats
 nhl_goalies_away <-  nhl_shots %>%
