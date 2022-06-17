@@ -39,6 +39,9 @@ geom_hockey(league = "NHL", full_surf = F) +
 
 # Examine to see if there is a correlation between shot distance and shot type --------
 
+# Make the labels for the graph
+nhl_shots$shotType <- factor(nhl_shots$shotType, labels = c("Backhand", "Deflection", "Slapshot", "Snapshot", "Tip", "Wrap", "Wrist"))
+
 # Model showing the different shot types versus distance
 nhl_shots %>%
   ggplot(aes(x = shotDistance)) +
@@ -176,6 +179,7 @@ nhl_player_shooting %>%
   labs(title = "Grouping players by their offensive shot output in home and away settings",
        x = "Amount of away shots per game",
        y = "Amount of home shots per game",
+       color = "Player Shooting Clusters",
        caption = "Data courtesy of Moneypuck.com") +
   theme_bw() +
   theme(legend.position = "bottom")
