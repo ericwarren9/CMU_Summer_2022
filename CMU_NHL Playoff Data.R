@@ -544,7 +544,7 @@ nhl_expected_goal_players %>%
   theme(legend.position = "bottom")
 
 
-# Look at clustering by team based on expected goals and shot perc --------
+# Look at clustering by team based on expected goals and shot percentage --------
 
 nhl_expected_goal_team <- nhl_shots %>% 
   group_by(teamCode) %>% 
@@ -683,7 +683,7 @@ nhl_goalies %>%
   theme_bw() +
   theme(legend.position = "bottom")
 
-# Put each team into a cluster
+# Put each goalie into a cluster
 nhl_goalies$save_cluster <- init_kmeanspp@cluster
 
 nhl_goalies %>%
@@ -870,3 +870,132 @@ nhl_goalies_starters %>%
   select(goalieNameForShot, 
          teamName, 
          starter_saves_cluster)
+
+
+
+# Find expected goals for and against for each playoff team per game --------
+
+# Make data set to include team values for expected goals for
+nhl_expected_goals_for <- nhl_shots %>%
+  group_by(teamCode) %>%
+  summarize(total_expected_goals_for = sum(expected_goals),
+            total_games = n_distinct(game_id)) %>%
+  mutate(expected_goals_for_per_game = round(total_expected_goals_for / total_games, 4))
+
+# Make data for expected values goals against
+# Have to subset by home and away based on data
+
+# Do home data first
+nhl_expected_goals_against_home <- nhl_shots %>%
+  filter(isHomeTeam == 0) %>%
+  group_by(homeTeamCode) %>%
+  summarize(total_expected_goals_against_home = sum(expected_goals),
+            total_games_home = n_distinct(game_id)) %>%
+  mutate(expected_goals_against_game_home = round(total_expected_goals_against_home / total_games_home, 4))
+
+# Do away data now
+nhl_expected_goals_against_away <- nhl_shots %>%
+  filter(isHomeTeam == 1) %>%
+  group_by(awayTeamCode) %>%
+  summarize(total_expected_goals_against_away = sum(expected_goals),
+            total_games_away = n_distinct(game_id)) %>%
+  mutate(expected_goals_away_per_game_away = round(total_expected_goals_against_away / total_games_away, 4))
+
+# Rename team names to make it consistent
+nhl_expected_goals_for <- rename(nhl_expected_goals_for, teamName = teamCode)
+
+nhl_expected_goals_against_home <- rename(nhl_expected_goals_against_home, teamName = homeTeamCode)
+
+nhl_expected_goals_against_away <- rename(nhl_expected_goals_against_away, teamName = awayTeamCode)
+
+# Merge the data together
+nhl_team_expected_goals_against <- merge(nhl_expected_goals_against_home, nhl_expected_goals_against_away, by = "teamName")
+
+nhl_team_expected_goals_total_data <- merge(nhl_expected_goals_for, nhl_team_expected_goals_against, by = "teamName")
+
+#Mutate to get overall total goals against
+nhl_team_expected_goals_total_data <- nhl_team_expected_goals_total_data %>%
+  mutate(total_expected_goals_against = total_expected_goals_against_away + total_expected_goals_against_home,
+         expected_goals_against_per_game = total_expected_goals_against / total_games) 
+
+# See how teams do both on offense (using expected goals for) and defense (using expected goals against)
+set.seed(12)
+init_kmeanspp <- 
+  kcca(dplyr::select(nhl_team_expected_goals_total_data,
+                     expected_goals_for_per_game, 
+                     expected_goals_against_per_game), 
+       k = 4,
+       control = list(initcent = "kmeanspp"))
+nhl_team_expected_goals_total_data %>%
+  mutate(nhl_expected_goals_clusters = 
+           as.factor(init_kmeanspp@cluster)) %>%
+  ggplot(aes(x = expected_goals_for_per_game, 
+             y = expected_goals_against_per_game,
+             color = nhl_expected_goals_clusters)) +
+  geom_point() + 
+  ggthemes::scale_color_colorblind() +
+  geom_hline(yintercept = mean(nhl_team_expected_goals_total_data$expected_goals_against_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  geom_vline(xintercept = mean(nhl_team_expected_goals_total_data$expected_goals_for_per_game), 
+             linetype = "dashed", 
+             color = "purple",
+             size = 2,
+             alpha = 0.3) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  coord_fixed()
+
+# Put each team into a cluster
+nhl_team_expected_goals_total_data$expected_goals_cluster <- init_kmeanspp@cluster
+
+nhl_team_expected_goals_total_data %>%
+  select(teamName, 
+         expected_goals_cluster)
+
+
+
+# Doing Hierarchical clustering using home and away shots by player -------
+
+# Compute the Euclidean distance
+player_shot_compare_dist <- dist(dplyr::select(nhl_player_shooting, away_shots_per_game, home_shots_per_game))
+
+# Get the complete linkage information for these variables
+nhl_shots_hclust_complete <- hclust(player_shot_compare_dist,
+                           method = "complete")
+
+# Determine the number of clusters I should use
+library(ggdendro)
+ggdendrogram(nhl_shots_hclust_complete, 
+             theme_dendro = FALSE, 
+             labels = FALSE, 
+             leaf_labels = FALSE) +
+  labs(y = "Dissimilarity between clusters") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), 
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank())
+# From this plot I believe 4 clusters is the best since the drop is not very steep / as much distance away
+
+# Make cluster labels and plot for complete linkage
+library(ggrepel)
+nhl_player_shooting %>%
+  mutate(shooting_clusters =
+           as.factor(cutree(nhl_shots_hclust_complete,
+                            h = 4))) %>%
+  ggplot(aes(x = away_shots_per_game, 
+             y = home_shots_per_game, 
+             color = shooting_clusters)) +
+  geom_label_repel(aes(label = ifelse((away_shots_per_game >= 6) | (home_shots_per_game >= 6), as.character(shooterName), '')),
+                   box.padding = 0.35,
+                   point.padding = 0.5,
+                   segment.color = 'grey50',
+                   size = 3) +
+  # Now we can see from the code above the players who are in the 4th cluster and stand out in their shot statistics
+  geom_point(alpha = .7) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw() +
+  theme(legend.position = "bottom")
