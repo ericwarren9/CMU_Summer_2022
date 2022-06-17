@@ -54,7 +54,7 @@ nhl_shots %>%
 
 # Try using the rink in it
 
-# Try to make two seperate plots
+# Try to make two separate plots
 par(1, 2)
 library(sportyR)
 nhl_shots_left <- nhl_shots %>%
