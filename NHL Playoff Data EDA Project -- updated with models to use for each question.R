@@ -167,13 +167,18 @@ nhl_player_shooting %>%
   ggplot(aes(x = away_shots_per_game, 
              y = home_shots_per_game, 
              color = shooting_clusters)) +
-  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots
+  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home and away shots
+                   box.padding = 0.35,
+                   point.padding = 0.5,
+                   segment.color = 'grey50',
+                   size = 3,
+                   color = "brown") +
+  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) & (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
                    size = 3,
                    color = "purple") +
-  # Now we can see from the code above the players who are in the 4th cluster and stand out in their shot statistics
   geom_point(alpha = .7) +
   ggthemes::scale_color_colorblind() +
   labs(title = "Grouping players by their offensive shot output in home and away settings",
