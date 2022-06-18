@@ -145,7 +145,7 @@ ggdendrogram(nhl_shots_hclust_complete,
         axis.title.x = element_blank(),
         axis.ticks.x = element_blank(),
         panel.grid = element_blank())
-# From this plot I believe 6 clusters is the best since the drop is not very steep / as much distance away
+# From this plot I believe 5 clusters is the best since the drop is not very steep / as much distance away
 
 # Make standard deviations for each of the home and away shots
 nhl_player_shooting <- nhl_player_shooting %>%
@@ -158,8 +158,11 @@ nhl_player_shooting <- nhl_player_shooting %>%
                             center = TRUE, 
                             scale = TRUE)))
 
+# Create a new variable to show players who are 3 std's above in both home and away shots. This will be used later for the coloring of the names
+shooterNameExtreme <- filter(nhl_player_shooting, std_away_shots_per_game >= 3, std_home_shots_per_game >= 3)
+
 # Make cluster labels and plot for complete linkage
-library(ggrepel)
+library(ggrepel)  
 nhl_player_shooting %>%
   mutate(shooting_clusters =
            as.factor(cutree(nhl_shots_hclust_complete,
@@ -167,13 +170,13 @@ nhl_player_shooting %>%
   ggplot(aes(x = away_shots_per_game, 
              y = home_shots_per_game, 
              color = shooting_clusters)) +
-  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home and away shots
+  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) & (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home and away shots
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
                    size = 3,
                    color = "brown") +
-  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) & (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
+  geom_label_repel(aes(label = ifelse(((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3)) & shooterName != shooterNameExtreme$shooterName, as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
