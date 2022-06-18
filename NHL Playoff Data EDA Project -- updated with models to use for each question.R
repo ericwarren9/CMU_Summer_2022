@@ -175,13 +175,17 @@ nhl_player_shooting %>%
                    point.padding = 0.5,
                    segment.color = 'grey50',
                    size = 3,
-                   color = "brown") +
+                   color = "brown",
+                   min.segment.length = 0,
+                   max.overlaps = Inf) +
   geom_label_repel(aes(label = ifelse(((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3)) & shooterName != shooterNameExtreme$shooterName, as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
                    size = 3,
-                   color = "purple") +
+                   color = "purple",
+                   min.segment.length = 0,
+                   max.overlaps = Inf) +
   geom_point(alpha = .7) +
   ggthemes::scale_color_colorblind() +
   labs(title = "Grouping players by their offensive shot output in home and away settings",
