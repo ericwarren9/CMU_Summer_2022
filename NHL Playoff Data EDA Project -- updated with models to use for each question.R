@@ -19,7 +19,9 @@ nhl_shots <- read_csv("nhl_playoffs_shots_2022.csv")
 # Make the heat map to answer question 1
 library(sportyR)
 nhl_shots$shooterLeftRight <- factor(nhl_shots$shooterLeftRight, labels = c("Left Handed Shooter", "Right Handed Shooter"))
-nhl_shots_filter <- nhl_shots %>% filter(arenaAdjustedYCord < 41, arenaAdjustedYCord > -41) %>% mutate(absXCoord = -abs(arenaAdjustedXCord))
+nhl_shots_filter <- nhl_shots %>% 
+  filter(arenaAdjustedYCord < 41, arenaAdjustedYCord > -41) %>% 
+  mutate(absXCoord = -abs(arenaAdjustedXCord))
 geom_hockey(league = "NHL", full_surf = F) + 
   stat_density2d(data = nhl_shots_filter,
                  adjust = 0.5,
@@ -93,39 +95,8 @@ nhl_player_shooting <- merge(nhl_shots_away_players,
                              by = "shooterName")
 
 
-# K means clustering ------------------------------------------------------
+# Doing Hierarchical clustering using home and away shots by player -------
 
-# Make cluster for home and away shots on goal data per game using k means
-library(flexclust)
-set.seed(12)
-init_kmeanspp <- 
-  kcca(dplyr::select(nhl_player_shooting,
-                     away_shots_per_game, 
-                     home_shots_per_game), 
-       k = 6,
-       control = list(initcent = "kmeanspp"))
-nhl_player_shooting %>%
-  mutate(nhl_player_clusters = 
-           as.factor(init_kmeanspp@cluster)) %>%
-  ggplot(aes(x = away_shots_per_game, 
-             y = home_shots_per_game,
-             color = nhl_player_clusters)) +
-  geom_point() + 
-  ggthemes::scale_color_colorblind() +
-  geom_hline(yintercept = mean(nhl_player_shooting$away_shots_per_game), 
-             linetype = "dashed", 
-             color = "purple",
-             size = 2,
-             alpha = 0.3) +
-  geom_vline(xintercept = mean(nhl_player_shooting$home_shots_per_game), 
-             linetype = "dashed", 
-             color = "purple",
-             size = 2,
-             alpha = 0.3) +
-  theme_bw() +
-  theme(legend.position = "bottom")
-
-# Doing Hierarchical clustering using home and away shots by player (model I prefer using answering this question) -------
 
 # Compute the Euclidean distance
 player_shot_compare_dist <- dist(dplyr::select(nhl_player_shooting, away_shots_per_game, home_shots_per_game))
@@ -170,7 +141,8 @@ nhl_player_shooting %>%
   ggplot(aes(x = away_shots_per_game, 
              y = home_shots_per_game, 
              color = shooting_clusters)) +
-  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) & (std_home_shots_per_game >= 3), as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home and away shots
+  #Label all players who are at least 3 standard deviations above the average for either the home and away shots
+  geom_label_repel(aes(label = ifelse((std_away_shots_per_game >= 3) & (std_home_shots_per_game >= 3), as.character(shooterName), '')), 
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
@@ -178,7 +150,8 @@ nhl_player_shooting %>%
                    color = "brown",
                    min.segment.length = 0,
                    max.overlaps = Inf) +
-  geom_label_repel(aes(label = ifelse(((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3)) & shooterName != shooterNameExtreme$shooterName, as.character(shooterName), '')), #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
+  #Label all players who are at least 3 standard deviations above the average for either the home or away shots but not both
+  geom_label_repel(aes(label = ifelse(((std_away_shots_per_game >= 3) | (std_home_shots_per_game >= 3)) & shooterName != shooterNameExtreme$shooterName, as.character(shooterName), '')),
                    box.padding = 0.35,
                    point.padding = 0.5,
                    segment.color = 'grey50',
@@ -194,4 +167,5 @@ nhl_player_shooting %>%
        color = "Player Shooting Clusters",
        caption = "Data courtesy of Moneypuck.com") +
   theme_bw() +
+  coord_fixed()
   theme(legend.position = "bottom")
