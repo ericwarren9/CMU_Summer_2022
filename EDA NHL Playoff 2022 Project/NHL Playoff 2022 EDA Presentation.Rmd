@@ -3,7 +3,7 @@ title: "NHL EDA"
 subtitle: "Exploratory data analysis using NHL playoff data"  
 author: 
   - "Hailey Jensen, Eric Warren, and Gary Zhang"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
+date: "June 24, 2022"
 output:
   xaringan::moon_reader:
     css: xaringan-themer.css
@@ -91,12 +91,11 @@ class: inverse center middle
 
 --
 
-Is there a difference between left handed vs. right handed players shots?
+### Is there a difference between left handed vs. right handed player shots?
 
 ---
 
-**The Difference in Shot Location Between Left Handed and Right Handed Shooters**
-
+### **Difference in Shot Location Between Left and Right Handed Shooters**
 ```{r, echo = FALSE, fig.width= 9, fig.height= 4.9}
 playoff_shot_data$shooterLeftRight <- factor(playoff_shot_data$shooterLeftRight, 
                                              labels = c("Left Handed Shooter", "Right Handed Shooter"))
@@ -127,12 +126,12 @@ class: inverse center middle
 
 --
 
-Is there a relationship between shot type and the distance of the shot?
+### Is there a relationship between shot type and the distance of the shot?
 
 ---
-**How Type of Shot Varies by Distance**
-
-```{r, echo = FALSE, fig.width= 9, fig.height= 5}
+#### **How Type of Shot Varies by Distance**
+```{r, echo = FALSE, fig.width= 9, fig.height= 4.9}
+playoff_shot_data$shotType <- factor(playoff_shot_data$shotType, labels = c("Backhand", "Deflection", "Slapshot", "Snapshot", "Tip", "Wrap", "Wrist"))
 mx <- mean(playoff_shot_data$shotDistance)
 playoff_shot_data%>%
   ggplot(aes(x = shotDistance))+
@@ -147,7 +146,7 @@ playoff_shot_data%>%
        y = "Frequency of Type of Shot",
        caption = "Data Courtesy of Moneypuck.com") +
   theme_bw() +
-  facet_wrap(~ shotType, ncol = 1)
+  facet_wrap(~ shotType, ncol = 2)
 ```
 
 ---
@@ -157,11 +156,11 @@ class: inverse center middle
 
 --
 
-Is there a significant difference in player and team output depending on if they are the home or away team? AKA: Is home team advantage real?
+### Is there a significant difference in player and team output depending on if they are the home or away team? AKA: Is home team advantage real?
 
 
 ---
-**Grouping players by their offensive shot output in home and away settings**
+### **Grouping players by their offensive shot output in home and away settings**
 ```{r, echo = FALSE, fig.width= 9, fig.height= 5}
 # Load the away player shooting data
 nhl_shots_away_players <- playoff_shot_data %>% 
@@ -248,8 +247,7 @@ nhl_player_shooting %>%
   theme(legend.position = "bottom")
 ```
 ---
-**Density Curves for Goals and Shots for Home and Away Teams**
-
+### **Density Curves for Goals and Shots for Home and Away Teams**
 ```{r, echo = FALSE, fig.width= 9, fig.height= 5}
 # 
 shot_dens <- playoff_shot_data %>%
@@ -287,7 +285,7 @@ cowplot::plot_grid(goal_dens, shot_dens, ncol = 2)
 ---
 # Major Takeaways / Future Things to Examine
 
-- Is there a trend that more left handed shooters take shots closer to the goals than right handed players?
+- It appears that left handed shooters have a higher percentage of shots closer to their attacking goal
 
 --
 
