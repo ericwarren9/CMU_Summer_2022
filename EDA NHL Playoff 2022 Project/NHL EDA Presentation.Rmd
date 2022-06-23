@@ -1,6 +1,5 @@
 ---
-title: "NHL EDA"
-subtitle: "Exploratory data analysis using NHL playoff data"  
+title: "Exploratory Data Analysis Using 2022 NHL Playoff Data"
 author: 
   - "Hailey Jensen, Eric Warren, and Gary Zhang"
 date: "June 24, 2022"
