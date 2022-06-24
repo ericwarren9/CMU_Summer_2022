@@ -247,8 +247,8 @@ nhl_player_shooting %>%
 ```
 ---
 ### **Density Curves for Goals and Shots for Home and Away Teams**
-```{r, echo = FALSE, fig.width= 9, fig.height= 5}
-# 
+```{r, echo = FALSE, fig.width= 9, fig.height= 4.7}
+# Density of shots on goal with home and away
 shot_dens <- playoff_shot_data %>%
   filter(time <= 3600) %>%
   ggplot(aes(x = time, color = as.character(isHomeTeam))) +
@@ -261,9 +261,9 @@ shot_dens <- playoff_shot_data %>%
        title = 'Density Curve of Shot Time') +
   theme(legend.position = 'bottom',
         plot.title = element_text(hjust = 0.5)) +
-  scale_color_discrete(name = '', labels = c('Away', 'Home')) 
+  scale_color_manual(name = '', labels = c('Away', 'Home'), values = c("Darkred", "cornflowerblue"))
 
-# shots on goal density curve with home and away
+# Goal density curve with home and away
 
 goal_dens <- playoff_shot_data %>%
   filter(time < 3600, event == 'GOAL') %>%
@@ -277,7 +277,7 @@ goal_dens <- playoff_shot_data %>%
        title = 'Density Curve of Goal Time') +
   theme(legend.position = 'bottom',
         plot.title = element_text(hjust = 0.5)) +
-  scale_color_discrete(name = '', labels = c('Away', 'Home'))
+  scale_color_manual(name = '', labels = c('Away', 'Home'), values = c("Darkred", "cornflowerblue"))
 
 cowplot::plot_grid(goal_dens, shot_dens, ncol = 2)
 ```
@@ -288,15 +288,16 @@ cowplot::plot_grid(goal_dens, shot_dens, ncol = 2)
 
 --
 
-- We can see that shot type varies by the distance away the player is from their scoring goal
+- We can see that shot type varies by the distance away attacking goal
+  - Teams could use this information to set up an ideal tactical defense
 
 --
 
-- We can see how some players vary based on where they play and that some players are much more elite depending on their location
+- We can see how some players perform at different levels, dependent on their game location
   - Should Karill Kaprizov be considered the best player in terms of generating offense for himself?
 
 --
 
-- We can see some distinct patterns between home and away teams of how they tend to play their games based on the location
+- We can see some distinct patterns between home and away teams of how they perform
 
 **Remember take these results with some caution. The number of games varied per team and the sample size is still quite small**
